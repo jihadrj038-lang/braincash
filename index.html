@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BrainCash - AI Quiz & Earn</title>
+    <meta name="monetag" content="3818bb830a8a087afbe7842b40594dcd">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+
+    <style>
+        body { background-color: #0f172a; color: white; font-family: 'Segoe UI', sans-serif; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        .gold-btn { background: linear-gradient(135deg, #fbbf24, #d97706); color: #000; font-weight: 800; transition: 0.3s; }
+        .gold-btn:active { transform: scale(0.95); }
+        .nav-btn { display: flex; flex-direction: column; align-items: center; font-size: 0.7rem; color: #94a3b8; }
+        .nav-btn.active { color: #fbbf24; }
+        .withdraw-card { border-left: 4px solid #fbbf24; }
+        @keyframes slide { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .animate-list { animation: slide 0.5s ease-out; }
+    </style>
+</head>
+<body class="pb-20">
+
+    <div id="auth-screen" class="fixed inset-0 z-50 bg-[#0f172a] flex flex-col items-center justify-center p-8 text-center">
+        <div class="mb-10">
+            <h1 class="text-5xl font-black text-amber-500 italic">BrainCash</h1>
+            <p class="text-gray-400 mt-2">AI কুইজ খেলুন আর ইনকাম করুন</p>
+        </div>
+        
+        <button onclick="loginGoogle()" class="w-full max-w-xs glass py-4 rounded-2xl flex items-center justify-center gap-3 mb-4">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/action/google.svg" width="22">
+            Continue with Google
+        </button>
+        
+        <button onclick="showPhoneLogin()" class="w-full max-w-xs glass py-4 rounded-2xl flex items-center justify-center gap-3">
+            📞 Login with Phone Number
+        </button>
+        <div id="recaptcha-container" class="mt-4"></div>
+    </div>
+
+    <div id="app-content" class="hidden">
+        <header class="p-5 glass flex justify-between items-center rounded-b-3xl mb-6 border-b border-amber-500/30">
+            <div class="flex items-center gap-3">
+                <img id="user-img" src="" class="w-12 h-12 rounded-full ring-2 ring-amber-500 p-0.5">
+                <div>
+                    <h2 id="user-name" class="font-bold text-sm">ইউজার</h2>
+                    <p class="text-xs text-amber-400 font-bold">💰 <span id="user-coins">0</span> Coins</p>
+                </div>
+            </div>
+            <div class="text-right">
+                <span class="bg-amber-500/10 text-amber-500 px-3 py-1 rounded-full text-[10px] font-bold">Limit: <span id="limit">0</span>/50</span>
+            </div>
+        </header>
+
+        <main id="view-quiz" class="px-6 animate-list">
+            <div class="glass p-8 rounded-3xl text-center shadow-xl border border-amber-500/10">
+                <p class="text-amber-500 text-[10px] font-bold tracking-widest uppercase mb-2">AI Generated Question</p>
+                <h2 id="question" class="text-xl font-bold mb-8 min-h-[60px]">লোড হচ্ছে...</h2>
+                <div id="options" class="grid grid-cols-1 gap-4"></div>
+            </div>
+        </main>
+
+        <main id="view-withdraw" class="hidden px-6 animate-list">
+            <div class="glass p-6 rounded-3xl mb-6">
+                <h3 class="text-lg font-bold mb-4">টাকা উত্তোলন (২০ - ৫০০ টাকা)</h3>
+                <input id="pay-num" type="tel" placeholder="বিকাশ/নগদ নম্বর" class="w-full bg-slate-900 border border-gray-700 p-4 rounded-xl mb-3 focus:outline-none focus:border-amber-500">
+                <input id="pay-amount" type="number" placeholder="টাকার পরিমাণ" class="w-full bg-slate-900 border border-gray-700 p-4 rounded-xl mb-4 focus:outline-none focus:border-amber-500">
+                <button onclick="requestWithdraw()" class="w-full gold-btn py-4 rounded-xl">উইথড্র রিকোয়েস্ট পাঠান</button>
+            </div>
+            
+            <h3 class="text-sm font-bold text-gray-400 mb-3 flex items-center gap-2">🟢 লাইভ পেমেন্ট প্রুফ</h3>
+            <div id="public-history" class="space-y-3 h-48 overflow-y-auto pr-2">
+                </div>
+        </main>
+
+        <nav class="fixed bottom-0 left-0 right-0 glass py-3 flex justify-around border-t border-gray-800 z-50">
+            <button onclick="switchView('quiz')" class="nav-btn active"><span>🎮</span>কুইজ</button>
+            <button onclick="switchView('withdraw')" class="nav-btn"><span>💰</span>উইথড্র</button>
+            <button onclick="logout()" class="nav-btn"><span>🚪</span>লগআউট</button>
+        </nav>
+    </div>
+
+    <script>
+        // Firebase Config
+        const firebaseConfig = {
+            apiKey: "AIzaSyApFEfGxMLi6e3DEkUljGbU...", // আপনার আপলোড করা ছবি থেকে প্রাপ্ত কী
+            authDomain: "braincash-89edd.firebaseapp.com",
+            projectId: "braincash-89edd",
+            storageBucket: "braincash-89edd.appspot.com",
+            messagingSenderId: "553348149782",
+            appId: "1:553348149782:web:2dbe7176ce..."
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.database();
+
+        let userData = { coins: 0, todayCount: 0 };
+
+        // Authentication Logic
+        function loginGoogle() {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            auth.signInWithPopup(provider);
+        }
+
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                document.getElementById('auth-screen').classList.add('hidden');
+                document.getElementById('app-content').classList.remove('hidden');
+                setupUser(user);
+            } else {
+                document.getElementById('auth-screen').classList.remove('hidden');
+                document.getElementById('app-content').classList.add('hidden');
+            }
+        });
+
+        function setupUser(user) {
+            document.getElementById('user-name').innerText = user.displayName || "User";
+            document.getElementById('user-img').src = user.photoURL || "https://cdn-icons-png.flaticon.com/512/149/149071.png";
+            
+            db.ref('users/' + user.uid).on('value', snap => {
+                userData = snap.val() || { coins: 0, todayCount: 0 };
+                document.getElementById('user-coins').innerText = userData.coins;
+                document.getElementById('limit').innerText = userData.todayCount;
+                loadQuiz();
+            });
+            loadLiveHistory();
+        }
+
+        // AI Quiz [cite: 2026-02-27]
+        const questions = [
+            { q: "১০০০ কয়েনে কত টাকা দেওয়া হয়?", o: ["১০ টাকা", "২০ টাকা", "৫ টাকা"], a: 0 },
+            { q: "বিকাশ কোন দেশের মোবাইল ব্যাংকিং?", o: ["ভারত", "বাংলাদেশ", "পাকিস্তান"], a: 1 }
+        ];
+
+        function loadQuiz() {
+            const q = questions[Math.floor(Math.random() * questions.length)];
+            document.getElementById('question').innerText = q.q;
+            const options = document.getElementById('options');
+            options.innerHTML = '';
+            q.o.forEach((opt, i) => {
+                const b = document.createElement('button');
+                b.className = "glass p-4 rounded-xl text-left border border-transparent hover:border-amber-500";
+                b.innerText = opt;
+                b.onclick = () => checkAns(i, q.a);
+                options.appendChild(b);
+            });
+        }
+
+        function checkAns(idx, correct) {
+            if(userData.todayCount >= 50) return alert("আজকের কুইজ লিমিট শেষ!");
+            if(idx === correct) {
+                alert("সঠিক উত্তর! ১০ কয়েন যোগ হয়েছে।");
+                db.ref('users/' + auth.currentUser.uid).update({
+                    coins: firebase.database.ServerValue.increment(10),
+                    todayCount: firebase.database.ServerValue.increment(1)
+                });
+            } else { alert("ভুল উত্তর, আবার চেষ্টা করুন।"); }
+        }
+
+        // Withdraw Logic (20 - 500 Limit) [cite: 2026-02-27]
+        function requestWithdraw() {
+            const num = document.getElementById('pay-num').value;
+            const amount = parseInt(document.getElementById('pay-amount').value);
+            const coinsNeeded = amount * 100;
+
+            if(amount < 20 || amount > 500) return alert("২০ থেকে ৫০০ টাকার মধ্যে উইথড্র দিন।");
+            if(userData.coins < coinsNeeded) return alert("আপনার পর্যাপ্ত কয়েন নেই। (১ টাকা = ১০০ কয়েন)");
+
+            db.ref('withdraws').push({
+                uid: auth.currentUser.uid,
+                phone: num,
+                amount: amount,
+                status: "Pending",
+                timestamp: Date.now()
+            });
+            db.ref('users/' + auth.currentUser.uid + '/coins').set(userData.coins - coinsNeeded);
+            alert("আপনার পেমেন্ট রিকোয়েস্টটি পেন্ডিং আছে। ১ ঘণ্টার মধ্যে চেক করা হবে।");
+        }
+
+        // Live Payment Proof List [cite: 2026-02-27]
+        function loadLiveHistory() {
+            db.ref('withdraws').limitToLast(10).on('value', snap => {
+                const div = document.getElementById('public-history');
+                div.innerHTML = '';
+                snap.forEach(child => {
+                    const data = child.val();
+                    const card = `
+                        <div class="glass p-3 rounded-xl flex justify-between items-center text-[11px] withdraw-card border-l-amber-500">
+                            <span>📱 ${data.phone.substring(0,4)}***${data.phone.substring(8)}</span>
+                            <span class="font-bold text-amber-500">৳${data.amount} পেমেন্ট</span>
+                            <span class="text-green-400 font-bold">${data.status}</span>
+                        </div>`;
+                    div.innerHTML = card + div.innerHTML;
+                });
+            });
+        }
+
+        function switchView(v) {
+            document.getElementById('view-quiz').classList.add('hidden');
+            document.getElementById('view-withdraw').classList.add('hidden');
+            document.getElementById('view-' + v).classList.remove('hidden');
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+        }
+
+        function logout() { auth.signOut(); }
+    </script>
+</body>
+</html>
