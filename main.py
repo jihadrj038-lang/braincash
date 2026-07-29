@@ -7,7 +7,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
 # --- আপনার তথ্যাসমূহ ---
-BOT_TOKEN = "8136759671:AAHuCTZnvot7VY9r6t1JXM99uqHA9VX1..." # আপনার পুরো বট টোকেনটি এখানে নিশ্চিত করুন
+BOT_TOKEN = "8136759671:AAHuCTZnvot7VY9r6t1JXM99uqHA9VX1Iig" # আপনার পুরো বট টোকেনটি এখানে নিশ্চিত করুন
 ADMIN_ID = 7469931517
 BKASH_NUMBER = "01965291171"
 
