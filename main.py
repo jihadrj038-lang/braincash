@@ -6,8 +6,8 @@ import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
-# --- আপনার তথ্যাসমূহ ---
-BOT_TOKEN = "8136759671:AAHuCTZnvot7VY9r6t1JXM99uqHA9VX1Iig" # আপনার পুরো বট টোকেনটি এখানে নিশ্চিত করুন
+# --- আপনার তথ্যসমূহ ---
+BOT_TOKEN = "8136759671:AAHuCTZnvot7VY9r6t1JXM99uqHA9VX1Iig"
 ADMIN_ID = 7469931517
 BKASH_NUMBER = "01965291171"
 
@@ -35,7 +35,7 @@ SERVICES = {
     "wa_jp":    {"name": "🇯🇵 Japan", "price": 580},
 }
 
-# --- ইউজার সংখ্যা সেভ করার জন্য সিস্টেমে যুক্ত কোড ---
+# --- ইউজার ট্র্যাকিং সিস্টেম ---
 USER_FILE = "users.txt"
 
 def save_user(user_id):
@@ -53,6 +53,7 @@ def get_user_count():
             return len(set(f.read().splitlines()))
     return 0
 
+# --- এডমিন কমান্ড: ইউজার সংখ্যা দেখা ---
 async def users_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id == ADMIN_ID:
         count = get_user_count()
@@ -74,7 +75,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode='Markdown'
     )
 
-# --- বাটন ক্লিক হ্যান্ডলার ---
+# --- বাটন নেভিগেশন ও অ্যাকশন ---
 async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -125,7 +126,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         await query.edit_message_text("প্রধান মেনু:", reply_markup=InlineKeyboardMarkup(keyboard))
 
-# --- ইউজার মেসেজ রিসিভ ও এডমিনকে নোটিফিকেশন ---
+# --- ইউজার মেসেজ প্রসেসিং ও নোটিফিকেশন ---
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     pending_order = context.user_data.get('pending_order')
@@ -147,7 +148,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("অর্ডার শুরু করতে /start লিখে প্রেস করুন।")
 
-# --- এডমিন কমান্ড: কাস্টমারকে নম্বর পাঠানো ---
+# --- এডমিন কমান্ড: নম্বর পাঠানো ---
 async def send_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
