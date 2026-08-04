@@ -6,7 +6,7 @@ import subprocess
 import sys
 from threading import Thread
 
-# প্রয়োজনীয় প্যাকেজ অটো-ইনস্টলেশন
+# প্রয়োজনীয় প্যাকেজ অটো ইনস্টল
 required_packages = ["python-telegram-bot", "requests"]
 for package in required_packages:
     try:
@@ -20,19 +20,19 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
 # ================= Configuration =================
-BOT_TOKEN = "8136759671:AAGSba-2I3r-HGRnGC5YdZFLcsssjY2KmvM"
+# আপনার নতুন দেওয়া বট টোকেন
+BOT_TOKEN = "8136759671:AAHFnJEiqF21wXjIEsJgTXBOV0vZUvdyj7M"
 ADMIN_ID = 7469931517
 BKASH_NUMBER = "01965291171"
 REFERRAL_BONUS = 10
 
-# আপনার নিখুঁত Paymently Credentials
+# Paymently Credentials
 UDDOKTAPAY_API_KEY = "3fy8pkdRSw5ogcHq4XWuGRMyPyuzeXEfb701OsCy"
 UDDOKTAPAY_API_URL = "https://globalnumbd.paymently.io/api/checkout-v2"
 
 DATA_FILE = "user_data.json"
 tg_app = None
 
-# সার্ভিস ও রেট তালিকা
 SERVICES = {
     "wa_uk":    {"name": "🇬🇧 UK", "price": 420},
     "wa_qa":    {"name": "🇶🇦 Qatar", "price": 420},
@@ -104,7 +104,6 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 
                 if user_id and amount > 0:
                     update_user_balance(user_id, amount)
-                    
                     if tg_app and tg_app.bot:
                         msg = f"🎉 **অটো ডিপোজিট সফল হয়েছে!**\n\n💰 যোগ করা হয়েছে: ৳{amount}\n💳 নতুন ব্যালেন্স: ৳{get_user_balance(user_id)}"
                         tg_app.loop.create_task(tg_app.bot.send_message(chat_id=int(user_id), text=msg, parse_mode='Markdown'))
@@ -296,7 +295,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_msg = update.message.text.strip()
 
-    # এডমিন নিজে কিছু লিখলে (ব্রডকাস্ট সিস্টেম)
     if user.id == ADMIN_ID:
         if user_msg.startswith("/"):
             return
@@ -311,7 +309,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 fail += 1
         await update.message.reply_text(f"✅ **সবার কাছে নোটিফিকেশন পাঠানো হয়েছে!**\n🎯 সফল: {success} জন | ❌ ব্যর্থ: {fail} জন")
     
-    # কাস্টমারদের পাঠানো ম্যানুয়াল মেসেজ এডমিনের কাছে আসবে
     else:
         admin_text = (
             f"🚨 **নতুন কাস্টমার মেসেজ / ম্যানুয়াল ডিপোজিট!**\n\n"
@@ -395,5 +392,5 @@ if __name__ == '__main__':
     app.add_handler(CallbackQueryHandler(button_click))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("Bot is running perfectly without any issues...")
-    app.run_polling()
+    print("Bot is starting cleanly...")
+    app.run_polling(drop_pending_updates=True)
