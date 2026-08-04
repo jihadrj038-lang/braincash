@@ -1,4 +1,5 @@
 
+
 import os
 import json
 import logging
@@ -23,6 +24,7 @@ BOT_TOKEN = "8136759671:AAEjaJW1bVFz2AUpchXxoPns7vpw_6PrgSE"
 ADMIN_ID = 7469931517
 BKASH_NUMBER = "01965291171"
 REFERRAL_BONUS = 10
+REQUIRED_CHANNEL = "@FreeIncomeBD1171"  # বাধ্যতামূলক চ্যানেল
 
 DATA_FILE = "user_data.json"
 tg_app = None
@@ -82,6 +84,31 @@ def update_user_balance(user_id, amount):
     data[uid]["balance"] += amount
     save_data(data)
 
+# ================= Channel Membership Check =================
+async def is_user_joined(bot, user_id):
+    try:
+        member = await bot.get_chat_member(chat_id=REQUIRED_CHANNEL, user_id=user_id)
+        if member.status in ['member', 'administrator', 'creator']:
+            return True
+        return False
+    except Exception:
+        # যদি কোনো কারণে বট চ্যানেলে এডমিন না থাকে বা চেক করতে না পারে
+        return True
+
+async def send_join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (
+        f"⚠️ **বট ব্যবহার করতে আপনাকে আমাদের চ্যানেলে জয়েন হতে হবে!**\n\n"
+        f"নিচের **'📢 চ্যানেলে জয়েন করুন'** বাটনে ক্লিক করে জয়েন হোন, তারপর **'✅ চেক করুন'** বাটনে চাপ দিন।"
+    )
+    keyboard = [
+        [InlineKeyboardButton("📢 চ্যানেলে জয়েন করুন", url="https://t.me/FreeIncomeBD1171")],
+        [InlineKeyboardButton("✅ চেক করুন", callback_data="check_joined")]
+    ]
+    if update.callback_query:
+        await update.callback_query.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
+    else:
+        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
+
 # ================= Keep-Alive Server =================
 class WebhookHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -97,6 +124,12 @@ def run_server():
 # ================= Telegram Bot Handlers =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    
+    # চ্যানেল জয়েনিং ভেরিফিকেশন
+    if not await is_user_joined(context.bot, user.id):
+        await send_join_request(update, context)
+        return
+
     data = load_data()
     uid = str(user.id)
     
@@ -146,6 +179,19 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
+
+    if query.data == 'check_joined':
+        if await is_user_joined(context.bot, user_id):
+            await query.message.delete()
+            await start(update, context)
+        else:
+            await query.answer("❌ আপনি এখনো চ্যানেলে জয়েন করেননি! দয়া করে চ্যানেলে জয়েন হয়ে আবার ট্রাই করুন।", show_alert=True)
+        return
+
+    # সাধারণ বাটনে ক্লিক করলেও চেক করবে জয়েন করা আছে কিনা
+    if not await is_user_joined(context.bot, user_id):
+        await send_join_request(update, context)
+        return
 
     if query.data == 'buy_number':
         keyboard = []
@@ -281,11 +327,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     msg = update.message
 
-    # কমান্ড হলে তা এড়িয়ে চলবে
     if msg.text and msg.text.startswith("/"):
         return
 
-    # 👑 এডমিন যা পাঠাবে (লেখা, ছবি, ফটো+ক্যাপশন, লিংক ইত্যাদি) তা সবার কাছে ব্রডকাস্ট হবে
+    # চ্যানেল জয়েন চেক (এডমিন ছাড়া বাকিদের জন্য)
+    if user.id != ADMIN_ID and not await is_user_joined(context.bot, user.id):
+        await send_join_request(update, context)
+        return
+
+    # 👑 এডমিন যা পাঠাবে তা সবার কাছে ব্রডকাস্ট হবে
     if user.id == ADMIN_ID:
         data = load_data()
         success, fail = 0, 0
@@ -294,7 +344,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         for uid in list(data.keys()):
             try:
-                # ফটো ও ছবিসহ মেসেজ ফরওয়ার্ড/কপি
                 await context.bot.copy_message(
                     chat_id=int(uid),
                     from_chat_id=update.effective_chat.id,
@@ -311,9 +360,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode='Markdown'
         )
 
-    # 👤 সাধারণ ইউজার মেসেজ বা TrxID পাঠালে এডমিনের কাছে সাপোর্ট আসবে
+    # 👤 সাধারণ ইউজার মেসেজ বা TrxID পাঠালে এডমিনের কাছে আসবে
     else:
-        user_msg_text = msg.text if msg.text else "[ছবি বা অন্য কোনো মিডিয়া ফাল পাঠানো হয়েছে]"
+        user_msg_text = msg.text if msg.text else "[ছবি বা অন্য কোনো মিডিয়া ফাইল]"
         admin_text = (
             f"🚨 **নতুন কাস্টমার মেসেজ / ডিপোজিট রিকোয়েস্ট!**\n\n"
             f"👤 ইউজার: {user.full_name} (@{user.username})\n"
@@ -322,7 +371,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📌 **ব্যালেন্স দিতে টাইপ করুন:**\n`/addbalance {user.id} পরিমাণ`"
         )
         
-        # যদি ইউজার ছবি পাঠায় তা এডমিনকে দেওয়া
         if msg.photo:
             await context.bot.send_photo(chat_id=ADMIN_ID, photo=msg.photo[-1].file_id, caption=admin_text, parse_mode='Markdown')
         else:
@@ -385,10 +433,7 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler("addbalance", add_balance))
     app.add_handler(CommandHandler("users", users_count))
     app.add_handler(CallbackQueryHandler(button_click))
-    
-    # সকল ছবি, ٹیکسٹ ও মিডিয়া ফাইল হ্যান্ডেল করার ফিল্টার
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
 
     print("Bot is starting cleanly...")
     app.run_polling(drop_pending_updates=True)
-
