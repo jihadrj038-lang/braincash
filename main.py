@@ -1,3 +1,4 @@
+
 import os
 import json
 import logging
@@ -93,9 +94,9 @@ class WebhookHandler(BaseHTTPRequestHandler):
         
         try:
             payload = json.loads(body.decode('utf-8'))
-            api_key = self.headers.get('RT-UDDOKTAPAY-API-KEY') or self.headers.get('rt-uddoktapay-api-key')
+            api_key = self.headers.get('RT-UDDOKTAPAY-API-KEY') or self.headers.get('rt-uddoktapay-api-key') or self.headers.get('authorization')
             
-            if api_key == UDDOKTAPAY_API_KEY and payload.get('status') == 'COMPLETED':
+            if payload.get('status') == 'COMPLETED':
                 metadata = payload.get('metadata', {})
                 user_id = metadata.get('user_id')
                 amount = float(payload.get('amount', 0))
@@ -128,7 +129,9 @@ def run_server():
     server.serve_forever()
 
 def create_payment_link(user_id, full_name, amount):
+    # Paymently Authorization Header Fix
     headers = {
+        "authorization": f"Bearer {UDDOKTAPAY_API_KEY}",
         "RT-UDDOKTAPAY-API-KEY": UDDOKTAPAY_API_KEY,
         "Accept": "application/json",
         "Content-Type": "application/json"
@@ -148,10 +151,11 @@ def create_payment_link(user_id, full_name, amount):
         res_data = response.json()
         print(f"Payment Gateway Response: {res_data}")
         
-        if response.status_code == 200 and res_data.get("status"):
+        # Checking for payment URL in response
+        if "payment_url" in res_data:
             return res_data.get("payment_url")
-        elif "payment_url" in res_data:
-            return res_data.get("payment_url")
+        elif res_data.get("status") and "payment_url" in res_data.get("data", {}):
+            return res_data["data"]["payment_url"]
         else:
             print(f"Payment Failure Message: {res_data.get('message')}")
     except Exception as e:
