@@ -1,4 +1,3 @@
-
 import os
 import json
 import logging
@@ -20,7 +19,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
 # ================= Configuration =================
-BOT_TOKEN = "8136759671:AAHFnJEiqF21wXjIEsJgTXBOV0vZUvdyj7M"
+BOT_TOKEN = "8136759671:AAEjaJW1bVFz2AUpchXxoPns7vpw_6PrgSE"
 ADMIN_ID = 7469931517
 BKASH_NUMBER = "01965291171"
 REFERRAL_BONUS = 10
@@ -147,9 +146,8 @@ def create_payment_link(user_id, full_name, amount):
     try:
         response = requests.post(UDDOKTAPAY_API_URL, json=payload, headers=headers, timeout=15)
         res_data = response.json()
-        print(f"Payment Gateway Response: {res_data}") # Render Log-এ পরিষ্কার দেখতে পাওয়ার জন্য
+        print(f"Payment Gateway Response: {res_data}")
         
-        # Paymently Response Check
         if response.status_code == 200 and res_data.get("status"):
             return res_data.get("payment_url")
         elif "payment_url" in res_data:
