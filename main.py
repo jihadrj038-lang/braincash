@@ -25,7 +25,8 @@ BKASH_NUMBER = "01965291171"
 REFERRAL_BONUS = 10
 
 UDDOKTAPAY_API_KEY = "1zwIwlrCfbHk1YVgZIs7ESdhOIK9jDPl3KRcEmTh"
-UDDOKTAPAY_API_URL = "https://globalnumbd.paymently.io/api/checkout-v2/request"
+# Paymently V2 API URL সংশোধন করা হয়েছে (সঠিক এন্ডপয়েন্ট):
+UDDOKTAPAY_API_URL = "https://globalnumbd.paymently.io/api/checkout-v2"
 
 DATA_FILE = "user_data.json"
 tg_app = None
@@ -138,12 +139,14 @@ def create_payment_link(user_id, full_name, amount):
             "user_id": str(user_id)
         },
         "redirect_url": "https://t.me/GlobalNumBD_official_bot",
-        "cancel_url": "https://t.me/GlobalNumBD_official_bot"
+        "cancel_url": "https://t.me/GlobalNumBD_official_bot",
+        "webhook_url": "https://your-render-app-name.onrender.com"  # এখানে আপনার রেন্ডার অ্যাপের URL দেবেন
     }
     try:
         response = requests.post(UDDOKTAPAY_API_URL, json=payload, headers=headers, timeout=10)
         res_data = response.json()
         if res_data.get("status"):
+            # Paymently/UddoktaPay response structure check
             return res_data.get("payment_url")
     except Exception as e:
         print(f"Payment Link Generation Error: {e}")
