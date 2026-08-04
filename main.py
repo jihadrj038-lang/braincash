@@ -1,3 +1,4 @@
+
 import os
 import json
 import logging
@@ -26,7 +27,7 @@ REFERRAL_BONUS = 10
 DATA_FILE = "user_data.json"
 tg_app = None
 
-# আকর্ষণীয় নাম্বারের সার্ভিস লিস্ট (দেশ ও ফ্ল্যাগ সহ)
+# সার্ভিস লিস্ট
 SERVICES = {
     "wa_usa":   {"name": "🇺🇸 USA (ইউএসএ)", "price": 380, "badge": "🔥 Hot"},
     "wa_uk":    {"name": "🇬🇧 UK (ইউকে)", "price": 420, "badge": "⚡ Fast"},
@@ -275,35 +276,59 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-# ================= Message & Broadcast System =================
+# ================= Smart Admin & User Message Handler =================
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    user_msg = update.message.text.strip()
+    msg = update.message
 
+    # কমান্ড হলে তা এড়িয়ে চলবে
+    if msg.text and msg.text.startswith("/"):
+        return
+
+    # 👑 এডমিন যা পাঠাবে (লেখা, ছবি, ফটো+ক্যাপশন, লিংক ইত্যাদি) তা সবার কাছে ব্রডকাস্ট হবে
     if user.id == ADMIN_ID:
-        if user_msg.startswith("/"):
-            return
-            
         data = load_data()
         success, fail = 0, 0
-        for uid in data.keys():
+        
+        status_msg = await update.message.reply_text("⏳ **ব্রডকাস্ট শুরু হয়েছে, সবার কাছে পাঠানো হচ্ছে...**", parse_mode='Markdown')
+
+        for uid in list(data.keys()):
             try:
-                await context.bot.send_message(chat_id=int(uid), text=f"📢 **এডমিন মেসেজ:**\n\n{user_msg}", parse_mode='Markdown')
+                # ফটো ও ছবিসহ মেসেজ ফরওয়ার্ড/কপি
+                await context.bot.copy_message(
+                    chat_id=int(uid),
+                    from_chat_id=update.effective_chat.id,
+                    message_id=msg.message_id
+                )
                 success += 1
             except Exception:
                 fail += 1
-        await update.message.reply_text(f"✅ **ব্রডকাস্ট সম্পন্ন!**\n🎯 সফল: {success} জন | ❌ ব্যর্থ: {fail} জন")
-    
+
+        await status_msg.edit_text(
+            f"✅ **ব্রডকাস্ট সম্পূর্ণ সফল!**\n━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🎯 সফলভাবে গেছে: `{success}` জনের কাছে\n"
+            f"❌ ব্যর্থ (ব্লক করেছে): `{fail}` জন",
+            parse_mode='Markdown'
+        )
+
+    # 👤 সাধারণ ইউজার মেসেজ বা TrxID পাঠালে এডমিনের কাছে সাপোর্ট আসবে
     else:
+        user_msg_text = msg.text if msg.text else "[ছবি বা অন্য কোনো মিডিয়া ফাল পাঠানো হয়েছে]"
         admin_text = (
-            f"🚨 **নতুন কাস্টমার নোটিফিকেশন!**\n\n"
+            f"🚨 **নতুন কাস্টমার মেসেজ / ডিপোজিট রিকোয়েস্ট!**\n\n"
             f"👤 ইউজার: {user.full_name} (@{user.username})\n"
             f"🆔 User ID: `{user.id}`\n"
-            f"💬 মেসেজ / TrxID:\n`{user_msg}`\n\n"
+            f"💬 মেসেজ:\n`{user_msg_text}`\n\n"
             f"📌 **ব্যালেন্স দিতে টাইপ করুন:**\n`/addbalance {user.id} পরিমাণ`"
         )
-        await context.bot.send_message(chat_id=ADMIN_ID, text=admin_text, parse_mode='Markdown')
-        await update.message.reply_text("✅ আপনার মেসেজ এডমিনের কাছে পাঠানো হয়েছে! এডমিন দেখে খুব দ্রুত ব্যবস্থা নিচ্ছেন।")
+        
+        # যদি ইউজার ছবি পাঠায় তা এডমিনকে দেওয়া
+        if msg.photo:
+            await context.bot.send_photo(chat_id=ADMIN_ID, photo=msg.photo[-1].file_id, caption=admin_text, parse_mode='Markdown')
+        else:
+            await context.bot.send_message(chat_id=ADMIN_ID, text=admin_text, parse_mode='Markdown')
+
+        await update.message.reply_text("✅ আপনার মেসেজ এডমিনের কাছে পাঠানো হয়েছে! এডমিন খুব দ্রুত রিপ্লাই বা অ্যাকশন নেবেন।")
 
 # ================= Admin Commands =================
 async def add_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -343,20 +368,6 @@ async def send_otp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception:
         await update.message.reply_text("❌ ভুল ফরম্যাট! লিখুন:\n`/sendotp <USER_ID> <OTP>`")
 
-async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID or not context.args:
-        return
-    message_to_send = " ".join(context.args)
-    data = load_data()
-    success, fail = 0, 0
-    for uid in data.keys():
-        try:
-            await context.bot.send_message(chat_id=int(uid), text=f"📢 **নোটিফিকেশন:**\n\n{message_to_send}", parse_mode='Markdown')
-            success += 1
-        except Exception:
-            fail += 1
-    await update.message.reply_text(f"✅ **ব্রডকাস্ট সম্পন্ন!**\n🎯 সফল: {success} জন | ❌ ব্যর্থ: {fail} জন")
-
 async def users_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id == ADMIN_ID:
         await update.message.reply_text(f"📊 মোট ইউজারের সংখ্যা: {len(load_data())} জন")
@@ -372,10 +383,11 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler("sendnum", send_number))
     app.add_handler(CommandHandler("sendotp", send_otp))
     app.add_handler(CommandHandler("addbalance", add_balance))
-    app.add_handler(CommandHandler("broadcast", broadcast_command))
     app.add_handler(CommandHandler("users", users_count))
     app.add_handler(CallbackQueryHandler(button_click))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    
+    # সকল ছবি, ٹیکسٹ ও মিডিয়া ফাইল হ্যান্ডেল করার ফিল্টার
+    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
 
     print("Bot is starting cleanly...")
     app.run_polling(drop_pending_updates=True)
