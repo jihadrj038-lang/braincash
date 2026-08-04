@@ -1,5 +1,19 @@
 
-import os, json, requests, logging
+import os
+import json
+import logging
+import subprocess
+import sys
+
+# প্রয়োজনীয় লাইব্রেরি স্বয়ংক্রিয়ভাবে ইনস্টল নিশ্চিত করা (যাতে কোনো এরর না আসে)
+required_packages = ["python-telegram-bot", "requests"]
+for package in required_packages:
+    try:
+        __import__(package.replace("-", "_"))
+    except ImportError:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+
+import requests
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from threading import Thread
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
