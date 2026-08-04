@@ -6,7 +6,7 @@ import subprocess
 import sys
 from threading import Thread
 
-# প্রয়োজনীয় লাইব্রেরি ইনস্টল নিশ্চিত করা
+# প্রয়োজনীয় লাইব্রেরি
 required_packages = ["python-telegram-bot", "requests"]
 for package in required_packages:
     try:
@@ -19,20 +19,17 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
-# --- কনফিগারেশন ---
 BOT_TOKEN = "8136759671:AAGSba-2I3r-HGRnGC5YdZFLcsssjY2KmvM"
 ADMIN_ID = 7469931517
 BKASH_NUMBER = "01965291171"
-REFERRAL_BONUS = 10  # প্রতি রেফারে ১০ টাকা
+REFERRAL_BONUS = 10
 
-# UddoktaPay Credentials
 UDDOKTAPAY_API_KEY = "1zwIwlrCfbHk1YVgZIs7ESdhOIK9jDPl3KRcEmTh"
 UDDOKTAPAY_API_URL = "https://globalnumbd.paymently.io/api/checkout-v2/request"
 
 DATA_FILE = "user_data.json"
 tg_app = None
 
-# --- দেশ ও সার্ভিস তালিকা ---
 SERVICES = {
     "wa_uk":    {"name": "🇬🇧 UK", "price": 420},
     "wa_qa":    {"name": "🇶🇦 Qatar", "price": 420},
@@ -56,7 +53,6 @@ SERVICES = {
     "wa_jp":    {"name": "🇯🇵 Japan", "price": 580},
 }
 
-# --- নিরাপদ ডাটাবেজ হ্যান্ডলার ---
 def load_data():
     if os.path.exists(DATA_FILE):
         try:
@@ -87,7 +83,6 @@ def update_user_balance(user_id, amount):
     data[uid]["balance"] += amount
     save_data(data)
 
-# --- Webhook HTTP Server (অটো পেমেন্টের জন্য) ---
 class WebhookHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         content_length = int(self.headers.get('Content-Length', 0))
@@ -130,7 +125,6 @@ def run_server():
     server = HTTPServer(("", port), WebhookHandler)
     server.serve_forever()
 
-# --- UddoktaPay API লিঙ্ক জেনারেটর ---
 def create_payment_link(user_id, full_name, amount):
     headers = {
         "RT-UDDOKTAPAY-API-KEY": UDDOKTAPAY_API_KEY,
@@ -155,7 +149,6 @@ def create_payment_link(user_id, full_name, amount):
         print(f"Payment Link Generation Error: {e}")
     return None
 
-# --- টেলিগ্রাম হ্যান্ডলারস ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     data = load_data()
@@ -247,27 +240,32 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
     elif query.data == 'deposit':
-        context.user_data['state'] = None  # রিসেট
         text = (
             f"💳 **টাকা রিচার্জের মাধ্যম বেছে নিন:**\n\n"
-            f"⚡ **অটো ডিপোজিট (UddoktaPay):** বিকাশ/নগদ/রকেট পেমেন্ট লিংকের মাধ্যমে ইন্সট্যান্ট রিচার্জ।\n\n"
+            f"⚡ **অটো ডিপোজিট (UddoktaPay):** সর্বনিম্ন ৳৩৫০ টাকা ডিপোজিট করতে পারবেন। কত টাকা ডিপোজিট করতে চান নিচের বাটনে চাপ দিন।\n\n"
             f"📱 **ম্যানুয়াল বিকাশ পার্সোনাল:**\nনম্বর: `{BKASH_NUMBER}` (Send Money)\n"
-            f"টাকা পাঠানোর পর সেন্ডার নম্বর ও TrxID নিচে মেসেজে লিখুন।"
+            f"টাকা পাঠানোর পর সেন্ডার নম্বর ও TrxID লিখে সাধারণ মেসেজ পাঠান।"
         )
         keyboard = [
-            [InlineKeyboardButton("⚡ অটো পেমেন্ট (বিকাশ/নগদ)", callback_data='auto_deposit')],
+            [InlineKeyboardButton("৳৩৫০", callback_data='pay_350'), InlineKeyboardButton("৳৪০০", callback_data='pay_400'), InlineKeyboardButton("৳৪৫০", callback_data='pay_450')],
+            [InlineKeyboardButton("৳৫০০", callback_data='pay_500'), InlineKeyboardButton("৳৭০০", callback_data='pay_700'), InlineKeyboardButton("৳১০০০", callback_data='pay_1000')],
             [InlineKeyboardButton("🔙 প্রধান মেনু", callback_data='main_menu')]
         ]
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
-    elif query.data == 'auto_deposit':
-        context.user_data['state'] = 'AWAITING_AUTO_AMOUNT'
-        keyboard = [[InlineKeyboardButton("❌ বাতিল করুন", callback_data='main_menu')]]
-        await query.edit_message_text(
-            "💰 **কত টাকা রিচার্জ করতে চান?**\nনিচে টাকার পরিমাণটি লিখে পাঠান (যেমন: `100` বা `500`):",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='Markdown'
-        )
+    elif query.data.startswith('pay_'):
+        amount = int(query.data.replace('pay_', ''))
+        payment_url = create_payment_link(user_id, query.from_user.full_name, amount)
+        if payment_url:
+            keyboard = [[InlineKeyboardButton(f"🔗 ৳{amount} পেমেন্ট করুন (Pay Now)", url=payment_url)], [InlineKeyboardButton("🔙 মেনু", callback_data='main_menu')]]
+            await query.edit_message_text(
+                f"✅ **৳{amount} পেমেন্ট লিংক তৈরি হয়েছে!**\n\n"
+                f"নিচের বাটনে চাপ দিয়ে পেমেন্ট সম্পূর্ণ করলেই অটো ব্যালেন্স যোগ হয়ে যাবে।",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='Markdown'
+            )
+        else:
+            await query.edit_message_text("❌ পেমেন্ট লিংক তৈরি করতে সমস্যা হয়েছে! আবার চেষ্টা করুন।")
 
     elif query.data == 'support':
         await query.edit_message_text(
@@ -279,7 +277,6 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("⏳ ওটিপি কোড চেক করা হচ্ছে, কোড আসার সাথে সাথে মেসেজে পাঠিয়ে দেওয়া হবে...", show_alert=True)
 
     elif query.data == 'main_menu':
-        context.user_data['state'] = None
         balance = get_user_balance(user_id)
         keyboard = [
             [InlineKeyboardButton("📱 নম্বর কিনুন", callback_data='buy_number')],
@@ -291,30 +288,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_msg = update.message.text.strip()
-    user_state = context.user_data.get('state')
 
-    # যদি ইউজার অটো ডিপোজিটের টাকার পরিমাণ টাইপ করে
-    if user_state == 'AWAITING_AUTO_AMOUNT':
-        if user_msg.isdigit() and int(user_msg) >= 10:
-            amount = int(user_msg)
-            context.user_data['state'] = None
-            payment_url = create_payment_link(user.id, user.full_name, amount)
-            
-            if payment_url:
-                keyboard = [[InlineKeyboardButton("🔗 পেমেন্ট করুন (Pay Now)", url=payment_url)]]
-                await update.message.reply_text(
-                    f"✅ **৳{amount} পেমেন্ট লিংক তৈরি হয়েছে!**\n\n"
-                    f"নিচের বাটনে চাপ দিয়ে পেমেন্ট সম্পন্ন করলেই আপনার একাউন্টে অটো ব্যালেন্স যোগ হয়ে যাবে।",
-                    reply_markup=InlineKeyboardMarkup(keyboard),
-                    parse_mode='Markdown'
-                )
-            else:
-                await update.message.reply_text("❌ পেমেন্ট লিংক তৈরি করতে সমস্যা হয়েছে! কিছুক্ষণ পর আবার চেষ্টা করুন।")
-        else:
-            await update.message.reply_text("⚠️ অনুগ্রহ করে সঠিক অংক টাইপ করুন (সর্বনিম্ন ১০ টাকা)।")
-        return
-
-    # সাধারণ মেসেজ (ম্যানুয়াল ডিপোজিট তথ্য বা এডমিন সাপোর্ট)
     admin_text = (
         f"🚨 **নতুন মেসেজ / ম্যানুয়াল ডিপোজিট!**\n\n"
         f"👤 ইউজার: {user.full_name} (@{user.username})\n"
@@ -325,7 +299,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=ADMIN_ID, text=admin_text, parse_mode='Markdown')
     await update.message.reply_text("✅ আপনার মেসেজটি এডমিনের কাছে পাঠানো হয়েছে! এডমিন শীঘ্রই তা ভেরিফাই করবেন।")
 
-# --- এডমিন কমান্ডসমুহ ---
 async def add_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
@@ -381,7 +354,6 @@ async def users_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id == ADMIN_ID:
         await update.message.reply_text(f"📊 মোট ইউজারের সংখ্যা: {len(load_data())} জন")
 
-# --- মূল রানার ---
 if __name__ == '__main__':
     Thread(target=run_server, daemon=True).start()
     
