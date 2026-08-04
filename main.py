@@ -6,7 +6,7 @@ import subprocess
 import sys
 from threading import Thread
 
-# প্রয়োজনীয় লাইব্রেরি
+# প্রয়োজনীয় প্যাকেজ অটো-ইনস্টলেশন
 required_packages = ["python-telegram-bot", "requests"]
 for package in required_packages:
     try:
@@ -19,18 +19,20 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
+# ================= Configuration =================
 BOT_TOKEN = "8136759671:AAGSba-2I3r-HGRnGC5YdZFLcsssjY2KmvM"
 ADMIN_ID = 7469931517
 BKASH_NUMBER = "01965291171"
 REFERRAL_BONUS = 10
 
-UDDOKTAPAY_API_KEY = "1zwIwlrCfbHk1YVgZIs7ESdhOIK9jDPl3KRcEmTh"
-# Paymently V2 API URL সংশোধন করা হয়েছে (সঠিক এন্ডপয়েন্ট):
+# আপনার নিখুঁত Paymently Credentials
+UDDOKTAPAY_API_KEY = "3fy8pkdRSw5ogcHq4XWuGRMyPyuzeXEfb701OsCy"
 UDDOKTAPAY_API_URL = "https://globalnumbd.paymently.io/api/checkout-v2"
 
 DATA_FILE = "user_data.json"
 tg_app = None
 
+# সার্ভিস ও রেট তালিকা
 SERVICES = {
     "wa_uk":    {"name": "🇬🇧 UK", "price": 420},
     "wa_qa":    {"name": "🇶🇦 Qatar", "price": 420},
@@ -54,6 +56,7 @@ SERVICES = {
     "wa_jp":    {"name": "🇯🇵 Japan", "price": 580},
 }
 
+# ================= Data Helper Functions =================
 def load_data():
     if os.path.exists(DATA_FILE):
         try:
@@ -84,6 +87,7 @@ def update_user_balance(user_id, amount):
     data[uid]["balance"] += amount
     save_data(data)
 
+# ================= Webhook Server for Auto Payment =================
 class WebhookHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         content_length = int(self.headers.get('Content-Length', 0))
@@ -139,19 +143,18 @@ def create_payment_link(user_id, full_name, amount):
             "user_id": str(user_id)
         },
         "redirect_url": "https://t.me/GlobalNumBD_official_bot",
-        "cancel_url": "https://t.me/GlobalNumBD_official_bot",
-        "webhook_url": "https://your-render-app-name.onrender.com"  # এখানে আপনার রেন্ডার অ্যাপের URL দেবেন
+        "cancel_url": "https://t.me/GlobalNumBD_official_bot"
     }
     try:
         response = requests.post(UDDOKTAPAY_API_URL, json=payload, headers=headers, timeout=10)
         res_data = response.json()
         if res_data.get("status"):
-            # Paymently/UddoktaPay response structure check
             return res_data.get("payment_url")
     except Exception as e:
         print(f"Payment Link Generation Error: {e}")
     return None
 
+# ================= Telegram Bot Handlers =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     data = load_data()
@@ -245,13 +248,13 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == 'deposit':
         text = (
             f"💳 **টাকা রিচার্জের মাধ্যম বেছে নিন:**\n\n"
-            f"⚡ **অটো ডিপোজিট (UddoktaPay):** সর্বনিম্ন ৳৩৫০ টাকা ডিপোজিট করতে পারবেন। কত টাকা ডিপোজিট করতে চান নিচের বাটনে চাপ দিন।\n\n"
+            f"⚡ **অটো পেমেন্ট (bKash):** নিচের অ্যামাউন্ট বাটনে চাপ দিন।\n\n"
             f"📱 **ম্যানুয়াল বিকাশ পার্সোনাল:**\nনম্বর: `{BKASH_NUMBER}` (Send Money)\n"
-            f"টাকা পাঠানোর পর সেন্ডার নম্বর ও TrxID লিখে সাধারণ মেসেজ পাঠান।"
+            f"টাকা পাঠানোর পর সেন্ডার নম্বর ও TrxID লিখে মেসেজে পাঠিয়ে দিন।"
         )
         keyboard = [
-            [InlineKeyboardButton("৳৩৫০", callback_data='pay_350'), InlineKeyboardButton("৳৪০০", callback_data='pay_400'), InlineKeyboardButton("৳৪৫০", callback_data='pay_450')],
-            [InlineKeyboardButton("৳৫০০", callback_data='pay_500'), InlineKeyboardButton("৳৭০০", callback_data='pay_700'), InlineKeyboardButton("৳১০০০", callback_data='pay_1000')],
+            [InlineKeyboardButton("৳৩৫০ (অটো)", callback_data='pay_350'), InlineKeyboardButton("৳৪০০ (অটো)", callback_data='pay_400')],
+            [InlineKeyboardButton("৳৫০০ (অটো)", callback_data='pay_500'), InlineKeyboardButton("৳১০০০ (অটো)", callback_data='pay_1000')],
             [InlineKeyboardButton("🔙 প্রধান মেনু", callback_data='main_menu')]
         ]
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
@@ -263,12 +266,12 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard = [[InlineKeyboardButton(f"🔗 ৳{amount} পেমেন্ট করুন (Pay Now)", url=payment_url)], [InlineKeyboardButton("🔙 মেনু", callback_data='main_menu')]]
             await query.edit_message_text(
                 f"✅ **৳{amount} পেমেন্ট লিংক তৈরি হয়েছে!**\n\n"
-                f"নিচের বাটনে চাপ দিয়ে পেমেন্ট সম্পূর্ণ করলেই অটো ব্যালেন্স যোগ হয়ে যাবে।",
+                f"নিচের বাটনে চাপ দিয়ে পেমেন্ট সম্পন্ন করুন।",
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode='Markdown'
             )
         else:
-            await query.edit_message_text("❌ পেমেন্ট লিংক তৈরি করতে সমস্যা হয়েছে! আবার চেষ্টা করুন।")
+            await query.edit_message_text("❌ পেমেন্ট লিংক তৈরি করতে সমস্যা হয়েছে! ম্যানুয়ালি বিকাশ নম্বরে টাকা পাঠিয়ে ট্রানজেকশন আইডি মেসেজে দিন।")
 
     elif query.data == 'support':
         await query.edit_message_text(
@@ -277,7 +280,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     elif query.data == 'request_otp':
-        await query.answer("⏳ ওটিপি কোড চেক করা হচ্ছে, কোড আসার সাথে সাথে মেসেজে পাঠিয়ে দেওয়া হবে...", show_alert=True)
+        await query.answer("⏳ ওটিপি কোড চেক করা হচ্ছে, কোড আসার সাথে সাথে আপনাকে পাঠিয়ে দেওয়া হবে...", show_alert=True)
 
     elif query.data == 'main_menu':
         balance = get_user_balance(user_id)
@@ -288,20 +291,39 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         await query.edit_message_text(f"প্রধান মেনু:\n💰 বর্তমান ব্যালেন্স: ৳{balance}", reply_markup=InlineKeyboardMarkup(keyboard))
 
+# ================= Message & Broadcast System =================
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_msg = update.message.text.strip()
 
-    admin_text = (
-        f"🚨 **নতুন মেসেজ / ম্যানুয়াল ডিপোজিট!**\n\n"
-        f"👤 ইউজার: {user.full_name} (@{user.username})\n"
-        f"🆔 User ID: `{user.id}`\n"
-        f"💬 মেসেজ:\n`{user_msg}`\n\n"
-        f"📌 **ব্যালেন্স দিতে টাইপ করুন:**\n`/addbalance {user.id} পরিমাণ`"
-    )
-    await context.bot.send_message(chat_id=ADMIN_ID, text=admin_text, parse_mode='Markdown')
-    await update.message.reply_text("✅ আপনার মেসেজটি এডমিনের কাছে পাঠানো হয়েছে! এডমিন শীঘ্রই তা ভেরিফাই করবেন।")
+    # এডমিন নিজে কিছু লিখলে (ব্রডকাস্ট সিস্টেম)
+    if user.id == ADMIN_ID:
+        if user_msg.startswith("/"):
+            return
+            
+        data = load_data()
+        success, fail = 0, 0
+        for uid in data.keys():
+            try:
+                await context.bot.send_message(chat_id=int(uid), text=f"📢 **এডমিন নোটিফিকেশন:**\n\n{user_msg}", parse_mode='Markdown')
+                success += 1
+            except Exception:
+                fail += 1
+        await update.message.reply_text(f"✅ **সবার কাছে নোটিফিকেশন পাঠানো হয়েছে!**\n🎯 সফল: {success} জন | ❌ ব্যর্থ: {fail} জন")
+    
+    # কাস্টমারদের পাঠানো ম্যানুয়াল মেসেজ এডমিনের কাছে আসবে
+    else:
+        admin_text = (
+            f"🚨 **নতুন কাস্টমার মেসেজ / ম্যানুয়াল ডিপোজিট!**\n\n"
+            f"👤 ইউজার: {user.full_name} (@{user.username})\n"
+            f"🆔 User ID: `{user.id}`\n"
+            f"💬 মেসেজ:\n`{user_msg}`\n\n"
+            f"📌 **ব্যালেন্স দিতে টাইপ করুন:**\n`/addbalance {user.id} পরিমাণ`"
+        )
+        await context.bot.send_message(chat_id=ADMIN_ID, text=admin_text, parse_mode='Markdown')
+        await update.message.reply_text("✅ আপনার মেসেজটি এডমিনের কাছে পাঠানো হয়েছে! যাচাই করে দ্রুত ব্যবস্থা নেওয়া হবে।")
 
+# ================= Admin Commands =================
 async def add_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
@@ -309,7 +331,7 @@ async def add_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_user_id = context.args[0]
         amount = float(context.args[1])
         update_user_balance(target_user_id, amount)
-        await update.message.reply_text(f"✅ User ID {target_user_id}-এ ৳{amount} সফলভাবে যোগ করা হয়েছে!")
+        await update.message.reply_text(f"✅ User ID {target_user_id}-এ ৳{amount} যোগ করা হয়েছে!")
         await context.bot.send_message(chat_id=int(target_user_id), text=f"🎉 আপনার একাউন্টে ৳{amount} ব্যালেন্স যোগ করা হয়েছে!")
     except Exception:
         await update.message.reply_text("❌ ভুল ফরম্যাট! লিখুন:\n`/addbalance <USER_ID> <পরিমাণ>`")
@@ -320,7 +342,7 @@ async def send_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         target_user_id = context.args[0]
         number_to_send = " ".join(context.args[1:])
-        msg = f"🎉 **আপনার নম্বর তৈরি:**\n`{number_to_send}`\n\n📌 *(নাম্বারের ওপর চাপ দিলে কপি হয়ে যাবে)*"
+        msg = f"🎉 **আপনার নম্বর প্রস্তুত:**\n`{number_to_send}`\n\n📌 *(নাম্বারের ওপর চাপ দিলে কপি হয়ে যাবে)*"
         keyboard = [[InlineKeyboardButton("📩 Get OTP / কোড পান", callback_data='request_otp')]]
         await context.bot.send_message(chat_id=int(target_user_id), text=msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
         await update.message.reply_text(f"✅ User ID {target_user_id}-এ নম্বর পাঠানো হয়েছে!")
@@ -339,7 +361,7 @@ async def send_otp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception:
         await update.message.reply_text("❌ ভুল ফরম্যাট! লিখুন:\n`/sendotp <USER_ID> <OTP>`")
 
-async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID or not context.args:
         return
     message_to_send = " ".join(context.args)
@@ -357,6 +379,7 @@ async def users_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id == ADMIN_ID:
         await update.message.reply_text(f"📊 মোট ইউজারের সংখ্যা: {len(load_data())} জন")
 
+# ================= Main Execution =================
 if __name__ == '__main__':
     Thread(target=run_server, daemon=True).start()
     
@@ -367,10 +390,10 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler("sendnum", send_number))
     app.add_handler(CommandHandler("sendotp", send_otp))
     app.add_handler(CommandHandler("addbalance", add_balance))
-    app.add_handler(CommandHandler("broadcast", broadcast))
+    app.add_handler(CommandHandler("broadcast", broadcast_command))
     app.add_handler(CommandHandler("users", users_count))
     app.add_handler(CallbackQueryHandler(button_click))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("Bot is up and running safely...")
+    print("Bot is running perfectly without any issues...")
     app.run_polling()
