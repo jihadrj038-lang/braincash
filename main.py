@@ -20,7 +20,6 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
 # ================= Configuration =================
-# আপনার নতুন দেওয়া বট টোকেন
 BOT_TOKEN = "8136759671:AAHFnJEiqF21wXjIEsJgTXBOV0vZUvdyj7M"
 ADMIN_ID = 7469931517
 BKASH_NUMBER = "01965291171"
@@ -132,6 +131,7 @@ def run_server():
 def create_payment_link(user_id, full_name, amount):
     headers = {
         "RT-UDDOKTAPAY-API-KEY": UDDOKTAPAY_API_KEY,
+        "Accept": "application/json",
         "Content-Type": "application/json"
     }
     payload = {
@@ -145,12 +145,19 @@ def create_payment_link(user_id, full_name, amount):
         "cancel_url": "https://t.me/GlobalNumBD_official_bot"
     }
     try:
-        response = requests.post(UDDOKTAPAY_API_URL, json=payload, headers=headers, timeout=10)
+        response = requests.post(UDDOKTAPAY_API_URL, json=payload, headers=headers, timeout=15)
         res_data = response.json()
-        if res_data.get("status"):
+        print(f"Payment Gateway Response: {res_data}") # Render Log-এ পরিষ্কার দেখতে পাওয়ার জন্য
+        
+        # Paymently Response Check
+        if response.status_code == 200 and res_data.get("status"):
             return res_data.get("payment_url")
+        elif "payment_url" in res_data:
+            return res_data.get("payment_url")
+        else:
+            print(f"Payment Failure Message: {res_data.get('message')}")
     except Exception as e:
-        print(f"Payment Link Generation Error: {e}")
+        print(f"Payment Link Generation Exception: {e}")
     return None
 
 # ================= Telegram Bot Handlers =================
