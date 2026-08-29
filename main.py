@@ -1,4 +1,3 @@
-
 import os
 import json
 import logging
@@ -7,32 +6,16 @@ import sys
 from threading import Thread
 
 # প্রয়োজনীয় প্যাকেজ অটো ইনস্টল
-required_packages = ["python-telegram-bot", "requests", "flask"]
+required_packages = ["python-telegram-bot", "requests"]
 for package in required_packages:
     try:
         __import__(package.replace("-", "_"))
     except ImportError:
         subprocess.check_call([sys.executable, "-m", "pip", "install", package])
 
-from flask import Flask
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
-
-# ================= Keep-Alive Web Server (Flask) =================
-web_app = Flask('')
-
-@web_app.route('/')
-def home():
-    return "Bot is alive and running!", 200
-
-def run_server():
-    port = int(os.environ.get("PORT", 8080))
-    web_app.run(host='0.0.0.0', port=port)
-
-def keep_alive():
-    t = Thread(target=run_server)
-    t.daemon = True
-    t.start()
 
 # ================= Configuration =================
 BOT_TOKEN = "8136759671:AAEjaJW1bVFz2AUpchXxoPns7vpw_6PrgSE"
@@ -107,6 +90,7 @@ async def is_user_joined(bot, user_id):
             return True
         return False
     except Exception:
+        # যদি কোনো কারণে বট চ্যানেলে এডমিন না থাকে বা চেক করতে না পারে
         return True
 
 async def send_join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -123,10 +107,23 @@ async def send_join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
+# ================= Keep-Alive Server =================
+class WebhookHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Server Active!")
+
+def run_server():
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("", port), WebhookHandler)
+    server.serve_forever()
+
 # ================= Telegram Bot Handlers =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     
+    # চ্যানেল জয়েনিং ভেরিফিকেশন
     if not await is_user_joined(context.bot, user.id):
         await send_join_request(update, context)
         return
@@ -189,6 +186,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("❌ আপনি এখনো চ্যানেলে জয়েন করেননি! দয়া করে চ্যানেলে জয়েন হয়ে আবার ট্রাই করুন।", show_alert=True)
         return
 
+    # সাধারণ বাটনে ক্লিক করলেও চেক করবে জয়েন করা আছে কিনা
     if not await is_user_joined(context.bot, user_id):
         await send_join_request(update, context)
         return
@@ -330,10 +328,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if msg.text and msg.text.startswith("/"):
         return
 
+    # চ্যানেল জয়েন চেক (এডমিন ছাড়া বাকিদের জন্য)
     if user.id != ADMIN_ID and not await is_user_joined(context.bot, user.id):
         await send_join_request(update, context)
         return
 
+    # 👑 এডমিন যা পাঠাবে তা সবার কাছে ব্রডকাস্ট হবে
     if user.id == ADMIN_ID:
         data = load_data()
         success, fail = 0, 0
@@ -358,6 +358,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode='Markdown'
         )
 
+    # 👤 সাধারণ ইউজার মেসেজ বা TrxID পাঠালে এডমিনের কাছে আসবে
     else:
         user_msg_text = msg.text if msg.text else "[ছবি বা অন্য কোনো মিডিয়া ফাইল]"
         admin_text = (
@@ -419,10 +420,8 @@ async def users_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ================= Main Execution =================
 if __name__ == '__main__':
-    # ১. প্রথমে ব্যাকগ্রাউন্ডে Flask Server চালু হবে
-    keep_alive()
+    Thread(target=run_server, daemon=True).start()
     
-    # ২. এরপর টেলিগ্রাম বট চালু হবে
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     tg_app = app
 
@@ -434,5 +433,5 @@ if __name__ == '__main__':
     app.add_handler(CallbackQueryHandler(button_click))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
 
-    print("Bot is starting cleanly with Flask web server...")
+    print("Bot is starting cleanly...")
     app.run_polling(drop_pending_updates=True)
