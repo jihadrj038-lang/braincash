@@ -1,4 +1,23 @@
 import os
+from threading import Thread
+from flask import Flask
+
+web_app = Flask('')
+
+@web_app.route('/')
+def home():
+    return "Bot is alive!", 200
+
+def run_server():
+    port = int(os.environ.get("PORT", 8080))
+    web_app.run(host='0.0.0.0', port=port)
+
+def keep_alive():
+    t = Thread(target=run_server)
+    t.daemon = True
+    t.start()
+
+import os
 import json
 import logging
 import subprocess
@@ -419,7 +438,7 @@ async def users_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"📊 মোট ইউজারের সংখ্যা: {len(load_data())} জন")
 
 # ================= Main Execution =================
-if __name__ == '__main__':
+if __name__ == '__main__':keep_alive()
     Thread(target=run_server, daemon=True).start()
     
     app = ApplicationBuilder().token(BOT_TOKEN).build()
