@@ -438,9 +438,9 @@ async def users_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"📊 মোট ইউজারের সংখ্যা: {len(load_data())} জন")
 
 # ================= Main Execution =================
-if __name__ == '__main__':keep_alive()
-    Thread(target=run_server, daemon=True).start()
-    
+if __name__ == '__main__':
+    keep_alive()
+  
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     tg_app = app
 
